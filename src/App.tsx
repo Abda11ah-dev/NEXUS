@@ -1,72 +1,65 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Bell, BrainCircuit, CalendarDays, Check, ChevronRight, Clock3, Dumbbell, Flame, LayoutDashboard, ListChecks, Menu, Plus, Scan, Settings, Sparkles, Target, Utensils, X, Zap } from 'lucide-react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import BodyModel from './BodyModel'
+import * as React from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import type { ComponentType } from 'react'
+import { Activity, BrainCircuit, CalendarDays, Dumbbell, Home as HomeIcon, MoreHorizontal, ScanLine, Settings as SettingsIcon, Utensils, WifiOff, X, Zap } from 'lucide-react'
+import { StoreProvider, useActions, useData, useStore } from './store/store'
+import { ToastProvider, nav, useToast } from './components/ui'
+import Home from './pages/Home'
+import Onboarding from './pages/Onboarding'
+import { occurrences } from './lib/recurrence'
+import { nowTime, timeToMin, todayStr } from './lib/date'
 
-type Task={id:number;text:string;done:boolean;time:string;tag:string}
-type Page='body'|'watchlist'|'calendar'|'training'|'progress'|'jarvis'
-const initialTasks:Task[]=[
- {id:1,text:'Morning mobility and warm-up',done:true,time:'07:00',tag:'TRAINING'},
- {id:2,text:'Breakfast — oats, banana, eggs and milk',done:true,time:'08:00',tag:'NUTRITION'},
- {id:3,text:'Upper-body strength session',done:false,time:'17:00',tag:'TRAINING'},
- {id:4,text:'Log meals and water intake',done:false,time:'20:00',tag:'NUTRITION'},
- {id:5,text:'Evening stretch and wind down',done:false,time:'21:30',tag:'RECOVERY'}
-]
-const nav:{id:Page;label:string;icon:any}[]=[
- {id:'body',label:'Body',icon:Scan},{id:'watchlist',label:'Watchlist',icon:ListChecks},{id:'calendar',label:'Calendar',icon:CalendarDays},{id:'training',label:'Training',icon:Dumbbell},{id:'progress',label:'Progress',icon:Activity},{id:'jarvis',label:'Jarvis',icon:BrainCircuit}
-]
-const chartData=[{day:'MON',weight:49.6},{day:'TUE',weight:49.7},{day:'WED',weight:49.8},{day:'THU',weight:49.8},{day:'FRI',weight:49.9},{day:'SAT',weight:50},{day:'SUN',weight:50}]
-export default function App(){
- const [page,setPage]=useState<Page>('body')
- const [view,setView]=useState<'muscular'|'hologram'>('muscular')
- const [selected,setSelected]=useState('Chest')
- const [tasks,setTasks]=useState<Task[]>(()=>{try{return JSON.parse(localStorage.getItem('nexus-tasks')||'null')||initialTasks}catch{return initialTasks}})
- const [newTask,setNewTask]=useState('')
- const [showAdd,setShowAdd]=useState(false)
- const [message,setMessage]=useState('')
- const [chat,setChat]=useState<{role:string;text:string}[]>([{role:'jarvis',text:'Systems online. I am ready to help you manage your transformation. What are we working on today?'}])
- const [busy,setBusy]=useState(false)
- const [clock,setClock]=useState(new Date())
- useEffect(()=>{localStorage.setItem('nexus-tasks',JSON.stringify(tasks))},[tasks])
- useEffect(()=>{const t=setInterval(()=>setClock(new Date()),1000);return()=>clearInterval(t)},[])
- const completed=tasks.filter(t=>t.done).length
- const percent=Math.round(completed/Math.max(tasks.length,1)*100)
- const date=useMemo(()=>clock.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}),[clock])
- const toggle=(id:number)=>setTasks(ts=>ts.map(t=>t.id===id?{...t,done:!t.done}:t))
- const addTask=()=>{if(!newTask.trim())return;setTasks(ts=>[...ts,{id:Date.now(),text:newTask.trim(),done:false,time:'ANYTIME',tag:'PERSONAL'}]);setNewTask('');setShowAdd(false)}
- const sendChat=()=>{if(!message.trim())return;const q=message.trim();setChat(c=>[...c,{role:'user',text:q}]);setMessage('');setBusy(true);setTimeout(()=>{let answer='I can help plan that. In this first offline prototype, I can read your NEXUS screens but live AI actions are not connected yet. The next integration will connect a secure AI service to your goals, tasks and training history.';if(/weight|gain|bulk/i.test(q))answer='Your starting profile is 50 kg at 165 cm. Let’s focus on a consistent calorie surplus, progressive strength training and weekly average weigh-ins. I can help you review your food log once nutrition tracking is added.';if(/task|today|priority|schedule/i.test(q))answer=`You have ${tasks.filter(t=>!t.done).length} incomplete tasks today. Your next listed activity is ${tasks.find(t=>!t.done)?.text||'no remaining tasks'}. I can help organise them once calendar actions are connected.`;setChat(c=>[...c,{role:'jarvis',text:answer}]);setBusy(false)},500)}
- const title=nav.find(n=>n.id===page)?.label||'Body'
- return <div className="app-shell">
-  <aside className="sidebar">
-   <div className="brand"><div className="brand-mark"><Zap size={21}/></div><div><b>NEXUS</b><small>TRANSFORMATION OS</small></div></div>
-   <div className="side-label">COMMAND CENTRE</div>
-   <nav>{nav.map(n=>{const I=n.icon;return <button key={n.id} className={`nav-item ${page===n.id?'active':''}`} onClick={()=>setPage(n.id)}><I size={18}/><span>{n.label}</span>{page===n.id&&<span className="nav-dot"/>}</button>})}</nav>
-   <div className="sidebar-bottom"><div className="system-card"><span className="online-dot"/> SYSTEM ONLINE <small>LOCAL PROTOTYPE</small></div><button className="nav-item"><Settings size={18}/><span>Settings</span></button><div className="profile-mini"><div className="avatar">A</div><div><b>MY PROFILE</b><small>LEVEL 01 · INITIATE</small></div></div></div>
-  </aside>
-  <main className="main">
-   <header className="topbar"><div className="mobile-brand"><Zap size={18}/> NEXUS</div><div className="crumb">NEXUS <ChevronRight size={13}/> <b>{title.toUpperCase()}</b></div><div className="top-actions"><span className="live-clock"><Clock3 size={14}/>{clock.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span><button className="icon-btn" aria-label="Notifications"><Bell size={17}/></button><div className="avatar small">A</div></div></header>
-   <div className="content">
-    <AnimatePresence mode="wait">
-     <motion.div key={page} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-5}} transition={{duration:.2}}>
-      {page==='body'&&<><div className="page-heading"><div><div className="eyebrow">PERSONAL COMMAND CENTRE / 001</div><h1>Body <span>systems.</span></h1><p>{date} · Your transformation starts with consistency.</p></div><div className="status-pill"><span className="online-dot"/> ALL SYSTEMS NORMAL</div></div>
-       <div className="stats-row"><Stat label="CURRENT WEIGHT" value="50.0" unit="KG" trend="STARTING POINT"/><Stat label="HEIGHT" value="165" unit="CM" trend="PROFILE DATA"/><Stat label="DAILY CHECKLIST" value={`${completed}/${tasks.length}`} unit="DONE" trend={`${percent}% COMPLETE`}/><Stat label="CURRENT STREAK" value="0" unit="DAYS" trend="BUILD YOUR STREAK"/></div>
-       <div className="body-layout"><section className="panel anatomy-panel"><div className="panel-head"><div><div className="eyebrow">INTERACTIVE ANATOMY</div><h2>Explore your body</h2></div><div className="segmented"><button className={view==='muscular'?'selected':''} onClick={()=>setView('muscular')}>Muscular</button><button className={view==='hologram'?'selected':''} onClick={()=>setView('hologram')}>Hologram</button></div></div><BodyModel view={view} selected={selected} onSelect={setSelected}/><div className="anatomy-footer"><span><i className="legend-dot"/> MUSCLE MODEL</span><span>360° ROTATION ENABLED</span></div></section>
-        <section className="right-stack"><div className="panel selected-panel"><div className="eyebrow">SELECTED REGION</div><h2>{selected}</h2><p>Explore the anatomy, exercises and training history for this region.</p><div className="muscle-tags"><button onClick={()=>setSelected('Chest')}>Chest</button><button onClick={()=>setSelected('Shoulders')}>Shoulders</button><button onClick={()=>setSelected('Biceps')}>Biceps</button><button onClick={()=>setSelected('Abdominals')}>Abs</button><button onClick={()=>setSelected('Quadriceps')}>Quads</button><button onClick={()=>setSelected('Calves')}>Calves</button></div><button className="text-action" onClick={()=>setPage('training')}>VIEW TARGETED TRAINING <ChevronRight size={14}/></button></div><div className="panel focus-panel"><div className="panel-head"><div><div className="eyebrow">TODAY'S FOCUS</div><h2>Stay consistent.</h2></div><Target size={20}/></div><div className="progress-line"><span style={{width:`${percent}%`}}/></div><div className="between muted"><span>{completed} of {tasks.length} tasks complete</span><b>{percent}%</b></div><button className="primary-btn full" onClick={()=>setPage('watchlist')}>OPEN WATCHLIST <ChevronRight size={15}/></button></div></section></div>
-       <div className="bottom-grid"><div className="panel"><div className="panel-head"><div><div className="eyebrow">DAILY EXECUTION</div><h2>Next up</h2></div><button className="text-action" onClick={()=>setPage('watchlist')}>ALL TASKS <ChevronRight size={14}/></button></div>{tasks.filter(t=>!t.done).slice(0,3).map(t=><div className="mini-task" key={t.id}><span className="task-time">{t.time}</span><span>{t.text}</span><span className="task-tag">{t.tag}</span></div>)}</div><div className="panel jarvis-teaser"><div className="orb"><BrainCircuit size={24}/></div><div><div className="eyebrow">NEXUS INTELLIGENCE</div><h2>Talk to Jarvis</h2><p>Your personal transformation assistant.</p><button className="text-action" onClick={()=>setPage('jarvis')}>INITIALISE ASSISTANT <ChevronRight size={14}/></button></div></div></div>
-      </>}
-      {page==='watchlist'&&<><PageHead eyebrow="DAILY EXECUTION / 002" title="Your watchlist." sub="Small actions. Compounded progress." action={<button className="primary-btn" onClick={()=>setShowAdd(true)}><Plus size={16}/> ADD TASK</button>}/><div className="stats-row"><Stat label="COMPLETED" value={String(completed)} unit={`/ ${tasks.length}`} trend="TODAY"/><Stat label="COMPLETION" value={String(percent)} unit="%" trend="DAILY PROGRESS"/></div><div className="panel task-panel"><div className="panel-head"><div><div className="eyebrow">TODAY'S CHECKLIST</div><h2>{date}</h2></div><span className="status-pill">{completed}/{tasks.length} COMPLETE</span></div><div className="progress-line"><span style={{width:`${percent}%`}}/></div>{tasks.map(t=><div className={`task-row ${t.done?'is-done':''}`} key={t.id}><button className="check-btn" onClick={()=>toggle(t.id)}>{t.done&&<Check size={15}/>}</button><div className="task-main"><b>{t.text}</b><small>{t.time} · {t.tag}</small></div><button className="delete-btn" onClick={()=>setTasks(ts=>ts.filter(x=>x.id!==t.id))}><X size={15}/></button></div>)}</div>{showAdd&&<div className="modal-backdrop"><div className="modal panel"><div className="panel-head"><h2>New task</h2><button className="icon-btn" onClick={()=>setShowAdd(false)}><X/></button></div><input autoFocus value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addTask()} placeholder="What do you need to do?"/><button className="primary-btn full" onClick={addTask}>SAVE TASK</button></div></div>}</>}
-      {page==='calendar'&&<><PageHead eyebrow="TIME & PLANNING / 003" title="Calendar." sub="A clear view of what deserves your time."/><div className="calendar-layout"><div className="panel"><div className="panel-head"><h2>Today · {date}</h2><span className="live-clock"><Clock3 size={14}/>{clock.toLocaleTimeString()}</span></div>{['07:00 · Morning mobility','08:00 · Breakfast','17:00 · Strength training','20:00 · Meal and hydration log','21:30 · Evening wind down'].map((x,i)=><div className="timeline-row" key={x}><span className="timeline-dot"/><span>{x}</span><small>{i<2?'COMPLETED':'UPCOMING'}</small></div>)}</div><div className="panel calendar-note"><CalendarDays size={28}/><h2>Plan with intention.</h2><p>Calendar editing, recurring events and device reminders are planned for the next build stage.</p><button className="primary-btn" onClick={()=>setPage('watchlist')}>MANAGE TODAY'S TASKS</button></div></div></>}
-      {page==='training'&&<><PageHead eyebrow="STRENGTH SYSTEM / 004" title="Training centre." sub="Log the work. Track the progression."/><div className="stats-row"><Stat label="WORKOUTS THIS WEEK" value="0" unit="SESSIONS" trend="START LOGGING"/><Stat label="PERSONAL RECORDS" value="0" unit="PRS" trend="EARN YOUR FIRST"/></div><div className="training-grid"><div className="panel"><div className="eyebrow">QUICK START</div><h2>Choose your focus.</h2>{['Push · Chest, shoulders, triceps','Pull · Back, biceps','Legs · Quads, hamstrings, calves','Full body · All major groups'].map(x=><button className="choice-row" key={x} onClick={()=>setSelected(x.split(' · ')[0])}><Dumbbell size={17}/>{x}<ChevronRight size={15}/></button>)}</div><div className="panel"><div className="eyebrow">TRAINING PRINCIPLE</div><h2>Progressive overload.</h2><p className="muted">Record exercises, sets, reps and loads. Increase training demand gradually while keeping technique and recovery in view.</p><div className="info-chip"><Flame size={16}/> CONSISTENCY OVER INTENSITY</div></div></div></>}
-      {page==='progress'&&<><PageHead eyebrow="TRANSFORMATION ANALYTICS / 005" title="Progress report." sub="Track trends, not daily noise."/><div className="stats-row"><Stat label="STARTING WEIGHT" value="50.0" unit="KG" trend="BASELINE"/><Stat label="CURRENT WEIGHT" value="50.0" unit="KG" trend="UPDATE YOUR LOG"/><Stat label="HEIGHT" value="165" unit="CM" trend="PROFILE"/></div><div className="panel chart-panel"><div className="panel-head"><div><div className="eyebrow">WEIGHT HISTORY</div><h2>Weekly overview</h2></div><span className="info-chip">KG</span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><defs><linearGradient id="weightFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#26c9ff" stopOpacity={.28}/><stop offset="100%" stopColor="#26c9ff" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#1c2c40" vertical={false}/><XAxis dataKey="day" stroke="#72869c" tickLine={false} axisLine={false}/><YAxis domain={[49,51]} stroke="#72869c" tickLine={false} axisLine={false}/><Tooltip contentStyle={{background:'#101c2c',border:'1px solid #29435c',borderRadius:10}}/><Area type="monotone" dataKey="weight" stroke="#35caff" strokeWidth={2.5} fill="url(#weightFill)"/></AreaChart></ResponsiveContainer></div><p className="muted small-note">Illustrative sample trend only. Replace with actual weigh-ins as soon as logging is implemented.</p></div></>}
-      {page==='jarvis'&&<><PageHead eyebrow="NEXUS INTELLIGENCE / 006" title="Jarvis." sub="Your personal transformation assistant."/><div className="chat-layout"><div className="panel chat-panel"><div className="chat-head"><div className="orb"><BrainCircuit size={24}/></div><div><b>JARVIS CORE</b><small><span className="online-dot"/> LOCAL DEMO MODE · AI API NOT CONNECTED</small></div></div><div className="chat-messages">{chat.map((m,i)=><div className={`bubble ${m.role}`} key={i}><small>{m.role==='jarvis'?'JARVIS':'YOU'}</small><p>{m.text}</p></div>)}{busy&&<div className="bubble jarvis"><small>JARVIS</small><p>Processing<span className="typing">...</span></p></div>}</div><div className="chat-compose"><input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()} placeholder="Ask Jarvis anything..."/><button className="primary-btn" onClick={sendChat}><Sparkles size={16}/> SEND</button></div></div><div className="panel"><div className="eyebrow">QUICK PROMPTS</div><h2>What can I help with?</h2>{['Review my weight-gain goal','Help me organise today','Explain progressive overload','Suggest affordable Kenyan bulking meals'].map(x=><button className="choice-row" key={x} onClick={()=>setMessage(x)}>{x}<ChevronRight size={15}/></button>)}</div></div></>}
-     </motion.div>
-    </AnimatePresence>
-   </div>
-   <footer className="footer"><span>NEXUS BUILD 0.1.0</span><span>LOCAL-FIRST PROTOTYPE · YOUR DATA STAYS IN THIS BROWSER</span></footer>
-  </main>
- </div>
+const pages = { body: lazy(() => import('./pages/Body')), workouts: lazy(() => import('./pages/Workouts')), nutrition: lazy(() => import('./pages/Nutrition')), progress: lazy(() => import('./pages/Progress')), calendar: lazy(() => import('./pages/Calendar')), jarvis: lazy(() => import('./pages/Jarvis')), settings: lazy(() => import('./pages/Settings')) } as Record<string, React.LazyExoticComponent<ComponentType>>
+const NAV = [{ id: 'home', label: 'Home', icon: HomeIcon }, { id: 'body', label: 'Body', icon: ScanLine }, { id: 'workouts', label: 'Workouts', icon: Dumbbell }, { id: 'nutrition', label: 'Nutrition', icon: Utensils }, { id: 'progress', label: 'Progress', icon: Activity }, { id: 'calendar', label: 'Calendar', icon: CalendarDays }, { id: 'jarvis', label: 'Jarvis', icon: BrainCircuit }, { id: 'settings', label: 'Settings', icon: SettingsIcon }]
+const PRIMARY = ['home', 'body', 'workouts', 'nutrition', 'jarvis']
+const route = () => { const h = window.location.hash.replace(/^#\/?/, '').split('?')[0]; return NAV.some(n => n.id === h) ? h : 'home' }
+
+class Boundary extends React.Component<{ children: React.ReactNode }, { err: Error | null }> {
+  state = { err: null as Error | null }
+  static getDerivedStateFromError(err: Error) { return { err } }
+  render() { return this.state.err ? <div className="card" style={{ margin: 16 }}><h2>Something went wrong on this screen</h2><p className="muted" style={{ margin: '6px 0 12px' }}>Your data is safe. {this.state.err.message}</p><button className="btn primary" onClick={() => { this.setState({ err: null }); nav('/') }}>Back to Home</button></div> : this.props.children }
 }
-function Stat({label,value,unit,trend}:{label:string;value:string;unit:string;trend:string}){return <div className="stat-card"><div className="eyebrow">{label}</div><div className="stat-value">{value}<small>{unit}</small></div><div className="stat-trend">{trend}</div></div>}
-function PageHead({eyebrow,title,sub,action}:{eyebrow:string;title:string;sub:string;action?:ReactNode}){return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{sub}</p></div>{action}</div>}
+
+function Reminders() {
+  const d = useData(); const a = useActions(); const toast = useToast(); const [, tick] = useState(0)
+  useEffect(() => { const t = setInterval(() => tick(n => n + 1), 30000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    if (!d.settings.remindersEnabled || d.settings.busyMode) return
+    const today = todayStr(), now = timeToMin(nowTime())
+    for (const o of occurrences(d.events, today, today)) {
+      const e = o.event; if (e.remindMin === null || o.done) continue
+      const key = `${e.id}:${today}`; const start = timeToMin(e.start), fire = start - e.remindMin
+      if (now >= fire && now <= start + 10 && !d.dismissed[key] && (d.snoozed[key] ?? 0) < Date.now()) {
+        toast(`${e.title} · ${e.start}`); a.dismiss(key)
+        if (d.settings.notifications && 'Notification' in window && Notification.permission === 'granted') { try { new Notification(e.title, { body: `Starts at ${e.start}`, icon: '/icons/icon-192.png' }) } catch { /* ignore */ } }
+      }
+    }
+  })
+  return null
+}
+
+function Shell() {
+  const { data, loadError, fresh } = useStore(); const [page, setPage] = useState(route()); const [more, setMore] = useState(false)
+  const [online, setOnline] = useState(navigator.onLine); const [upd, setUpd] = useState<ServiceWorker | null>(null)
+  useEffect(() => { const h = () => { setPage(route()); setMore(false); window.scrollTo(0, 0) }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
+  useEffect(() => { const on = () => setOnline(true), off = () => setOnline(false); window.addEventListener('online', on); window.addEventListener('offline', off); const u = (e: Event) => setUpd((e as CustomEvent<ServiceWorker>).detail); window.addEventListener('nexus-update', u); return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); window.removeEventListener('nexus-update', u) } }, [])
+  if (!data.profile.onboarded) return <Onboarding />
+  const Page = pages[page]
+  const item = (n: (typeof NAV)[number], cls: string) => { const I = n.icon; return <button key={n.id} className={`${cls} ${page === n.id ? 'on' : ''}`} onClick={() => nav('/' + (n.id === 'home' ? '' : n.id))} aria-current={page === n.id ? 'page' : undefined}><I size={cls === 'nav-item' ? 18 : 21} /><span>{n.label}</span></button> }
+  return <div className="shell">
+    <aside className="sidebar"><div className="brand"><div className="brand-mark"><Zap size={19} /></div><div><b>NEXUS</b><small>FITNESS OS</small></div></div>{NAV.map(n => item(n, 'nav-item'))}</aside>
+    <div className="main">
+      <div className="topbar"><div className="brand"><div className="brand-mark"><Zap size={15} /></div><b>NEXUS</b></div><div className="eyebrow">{NAV.find(n => n.id === page)?.label}</div><span className="muted small">{!online && <><WifiOff size={13} style={{ verticalAlign: -2 }} /> offline</>}</span></div>
+      <main className="content">
+        {upd && <div className="banner info"><span>A new version of NEXUS is ready.</span><button className="btn sm primary" onClick={() => upd.postMessage({ type: 'SKIP_WAITING' })}>Update</button></div>}
+        {loadError && fresh && <div className="banner bad"><span>{loadError}</span></div>}
+        {!online && <div className="banner info"><span>You are offline. Everything you log is saved on this device.</span></div>}
+        <Boundary key={page}><Suspense fallback={<div className="empty"><div className="spinner" /></div>}>{page === 'home' ? <Home /> : <Page />}</Suspense></Boundary>
+      </main>
+    </div>
+    {more && <div className="more-sheet" role="menu">{NAV.filter(n => !PRIMARY.includes(n.id)).map(n => { const I = n.icon; return <button key={n.id} className="nav-item" role="menuitem" onClick={() => { nav('/' + n.id); setMore(false) }}><I size={18} />{n.label}</button> })}<button className="nav-item" onClick={() => setMore(false)}><X size={18} />Close</button></div>}
+    <nav className="bottom-nav" aria-label="Main">{NAV.filter(n => PRIMARY.includes(n.id)).map(n => item(n, 'bn'))}<button className={`${['progress', 'calendar', 'settings'].includes(page) ? 'on' : ''}`} onClick={() => setMore(m => !m)} aria-expanded={more}><MoreHorizontal size={21} /><span>More</span></button></nav>
+    <Reminders />
+  </div>
+}
+export default function App() { return <StoreProvider><ToastProvider><Shell /></ToastProvider></StoreProvider> }
